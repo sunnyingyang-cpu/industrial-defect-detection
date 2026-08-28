@@ -1,0 +1,36 @@
+# 工业表面缺陷检测 - 数据集配置 (NEU-DET)
+# ============================================================
+# 数据集: NEU-DET (东北大学 热轧钢带表面缺陷公开数据集)
+#   - 1800 张 200×200 灰度图, 6 类表面缺陷
+#   - 类别: 龟裂 / 夹杂 / 斑块 / 凹坑表面 / 轧入氧化皮 / 划痕
+# 下载 (任选其一，解压后应为 IMAGES/ + ANNOTATIONS/ 结构，标注为 VOC XML):
+#   官方原版: http://faculty.neu.edu.cn/songkechen/zh_CN/zdylm/263270  (东北大学宋克臣老师主页, 搜 NEU-DET)
+#   GitHub 镜像: https://github.com/yuanzhongqiao/NEU-DET-Steel-Surface-Defect-Detection  (仓库内含 IMAGES/ + ANNOTATIONS/)
+#   Kaggle: 搜索 "NEU-DET" / "NEU Surface Defect Database"
+#   Roboflow Universe: 搜索 "NEU-DET" (已是 YOLO 格式，可跳过下面转换)
+# 标注转换: 见 tools/prepare_neu_det.py (VOC-XML 与原生 txt 两种格式均支持, 且自动识别)
+#
+# 目录约定 (与 YOLOv5 一致):
+#   datasets/NEU-DET/
+#     ├── images/{train,val,test}/*.jpg
+#     └── labels/{train,val,test}/*.txt
+# ============================================================
+
+# 训练 / 验证 / 测试集图片目录
+# 注意: 本仓库 check_dataset 不自动拼接 path 字段, 路径须相对运行 train.py 时的
+#       工作目录(即本仓库根)写完整路径; 标签目录由 images 自动替换为 labels。
+train: datasets/NEU-DET/images/train   # 训练集 (1441 张)
+val: datasets/NEU-DET/images/val       # 验证集 (179 张)
+test: datasets/NEU-DET/images/test     # 测试集 (180 张)
+
+# 类别数
+nc: 6
+
+# 类别名称 (顺序必须与 tools/prepare_neu_det.py 中的 CLASSES 一致)
+names:
+  0: crazing           # 龟裂
+  1: inclusion         # 夹杂
+  2: patches           # 斑块
+  3: pitted_surface    # 凹坑表面
+  4: rolled-in_scale  # 轧入氧化皮
+  5: scratches         # 划痕

@@ -1,0 +1,26 @@
+# ---- 权重 / 数据集 / 训练输出 (不入库) ----
+weights/*.pt
+weights/*.onnx
+weights/*.engine
+datasets/
+runs/
+*.pt
+*.onnx
+*.engine
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# ---- 系统 / 编辑器 ----
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ---- 不入库：本地 CI workflow（避免 PAT 推 workflow 需 workflow scope） ----
+.github/
