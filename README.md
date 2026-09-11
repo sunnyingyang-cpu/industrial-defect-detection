@@ -1,5 +1,7 @@
 # 工业表面缺陷检测 (Industrial Surface Defect Detection)
 
+> 🌐 **[在线展示页](https://sunnyingyang-cpu.github.io/industrial-defect-detection/)** —— 项目一页式可视化汇报（痛点→设计 → 消融矩阵 → 逐类归因 → 部署路线）。
+
 > 基于 YOLOv5 的工业质检目标检测方案 —— 针对**微小、低对比度、多尺度**表面缺陷优化，  
 > 覆盖数据转换 → 训练 → 评测 → **部署 (ONNX / TensorRT / REST API)** 的全流程。
 >

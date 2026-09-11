@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YYJ · 工业表面缺陷检测 — YOLOv5 从痛点到产线</title>
+<meta name="description" content="基于 YOLOv5 的工业质检方案：针对微小/低对比度/多尺度缺陷定向改造（P2 头/C3TR/P6），NEU-DET 实测 mAP@0.5 0.606，传统 CV 与深度学习协同设计，ONNX/TensorRT/REST 部署全路径。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23f2a33c'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle' fill='%23101318' font-family='serif' font-weight='700'%3E%E6%A3%80%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#0a0d12; --bg2:#0d1016; --card:#12161e; --surface:#161b2633;
+  --line:#1e2530; --line2:#2a3342;
+  --text:#e8ebf1; --muted:#98a2b3; --dim:#64708200;
+  --dim:#6b7688;
+  --amber:#f2a33c; --amber2:#ffbd59; --amber-soft:rgba(242,163,60,.11);
+  --green:#4cc38a; --red2:#ff6b6f; --bar:#2b3444;
+  --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;
+  --mono:"SF Mono","Cascadia Code","JetBrains Mono",Consolas,"Courier New",monospace;
+  --max:1120px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.75;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+::selection{background:var(--amber);color:#101318}
+#progress{position:fixed;top:0;left:0;height:2px;width:0;background:linear-gradient(90deg,var(--amber),var(--green));z-index:99;transition:width .1s linear}
+
+nav{position:fixed;top:0;left:0;right:0;z-index:90;backdrop-filter:blur(14px);background:rgba(10,13,18,.78);border-bottom:1px solid var(--line)}
+.nav-in{max-width:var(--max);margin:0 auto;padding:14px 24px;display:flex;align-items:center;gap:14px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:14.5px}
+.seal-mini{width:26px;height:26px;border:2px solid var(--amber);border-radius:6px;color:var(--amber);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;transform:rotate(4deg);flex:none}
+.nav-links{margin-left:auto;display:flex;gap:20px;font-size:13px}
+.nav-links a{color:var(--muted);text-decoration:none;transition:color .2s}
+.nav-links a:hover{color:var(--text)}
+.nav-gh{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text);border:1px solid var(--line2);border-radius:8px;padding:5px 12px;text-decoration:none;transition:.2s}
+.nav-gh:hover{border-color:var(--amber);color:var(--amber2)}
+@media(max-width:900px){.nav-links{display:none}}
+
+.wrap{max-width:var(--max);margin:0 auto;padding:0 24px}
+section{padding:96px 0;scroll-margin-top:70px;position:relative}
+section:nth-of-type(even){background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;color:var(--amber);text-transform:uppercase;display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.eyebrow::before{content:"";width:26px;height:1px;background:var(--amber)}
+h2{font-size:clamp(26px,4vw,38px);font-weight:700;line-height:1.3;margin-bottom:14px}
+.lead{color:var(--muted);font-size:16.5px;max-width:780px;margin-bottom:44px}
+.lead b{color:var(--text);font-weight:600}
+.en{font-family:var(--mono);color:var(--dim);font-size:.72em;letter-spacing:.14em;font-weight:400}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px 26px;transition:border-color .25s,transform .25s}
+.card:hover{border-color:var(--line2);transform:translateY(-2px)}
+.note{font-size:13px;color:var(--dim);line-height:1.7}
+.note b{color:var(--text)}
+.mono{font-family:var(--mono)}
+
+.hero{min-height:100svh;display:flex;flex-direction:column;justify-content:center;padding:126px 0 64px;position:relative;overflow:hidden}
+.hero-glow{position:absolute;width:840px;height:540px;top:-230px;right:-280px;pointer-events:none;background:radial-gradient(closest-side,rgba(242,163,60,.12),transparent 70%)}
+.hero-grid-bg{position:absolute;inset:0;pointer-events:none;opacity:.45;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse 90% 70% at 40% 30%,#000 30%,transparent 75%)}
+.hero-spec{position:absolute;top:0;bottom:0;right:3.5%;display:flex;gap:52px;opacity:.05;pointer-events:none;font-family:var(--mono);font-size:14px;writing-mode:vertical-rl;color:var(--text);white-space:nowrap}
+.hero-eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:.24em;color:var(--amber);margin-bottom:22px;display:flex;align-items:center;gap:12px}
+.hero-eyebrow::before{content:"";width:34px;height:1px;background:var(--amber)}
+h1{font-size:clamp(32px,5.6vw,58px);font-weight:800;line-height:1.22;max-width:880px}
+h1 .hl{color:var(--amber2)}
+.hero-sub{margin-top:22px;color:var(--muted);font-size:clamp(15px,1.6vw,17.5px);max-width:730px}
+.hero-sub code{font-family:var(--mono);font-size:.88em;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:1px 7px}
+.hero-chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px}
+.chip{font-family:var(--mono);font-size:12px;color:var(--muted);border:1px solid var(--line2);border-radius:999px;padding:4px 13px;background:var(--surface)}
+
+.scanbox{margin-top:44px;background:#0b0e14;border:1px solid var(--line2);border-radius:14px;overflow:hidden;box-shadow:0 30px 80px -40px rgba(0,0,0,.8);position:relative}
+.scanbar{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line);background:#0f1319}
+.dot{width:11px;height:11px;border-radius:50%}
+.dot.r{background:#ff5f57}.dot.y{background:#febc2e}.dot.g{background:#28c840}
+.scan-title{margin-left:8px;font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+.scan-body{position:relative;background:#f4f4f6;padding:10px}
+.scan-body img{width:100%;display:block;border-radius:4px}
+.scanline{position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,transparent,var(--amber),transparent);box-shadow:0 0 22px 4px rgba(242,163,60,.45);animation:scan 5.5s cubic-bezier(.4,0,.6,1) infinite;pointer-events:none}
+@keyframes scan{0%{top:2%;opacity:0}6%{opacity:1}50%{top:96%}54%{opacity:1}60%{top:96%;opacity:0}100%{top:2%;opacity:0}}
+.scan-caps{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px}
+@media(max-width:700px){.scan-caps{grid-template-columns:1fr}}
+.cap{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:8px;padding:9px 13px;color:var(--muted);background:#0e1218}
+.cap b{color:var(--text)}
+.cap.hot{border-color:rgba(242,163,60,.4)}
+.cap .a{color:var(--amber2);font-weight:700}
+.real-tag{position:absolute;top:52px;right:20px;font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;color:var(--amber);background:rgba(10,13,18,.82);border:1px solid rgba(242,163,60,.4);border-radius:6px;padding:3px 10px;z-index:2}
+
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:46px}
+@media(max-width:900px){.metrics{grid-template-columns:repeat(2,1fr)}}
+.metric{background:linear-gradient(180deg,var(--card),#0e1219);border:1px solid var(--line);border-radius:14px;padding:22px;position:relative;overflow:hidden}
+.metric::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--amber),transparent 70%);opacity:0;transition:opacity .3s}
+.metric:hover::before{opacity:1}
+.metric .num{font-family:var(--mono);font-size:clamp(28px,3.2vw,40px);font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.metric .num small{font-size:.5em;color:var(--amber2);font-weight:600}
+.metric .lab{margin-top:8px;font-size:14px;font-weight:600}
+.metric .delta{margin-top:5px;font-family:var(--mono);font-size:12px;color:var(--dim)}
+.metric .delta b{color:var(--green);font-weight:600}
+.scroll-hint{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);color:var(--dim);font-family:var(--mono);font-size:11.5px;letter-spacing:.2em;display:flex;flex-direction:column;align-items:center;gap:8px;animation:bob 2.2s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,7px)}}
+
+.tri{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+@media(max-width:900px){.tri{grid-template-columns:1fr}}
+.pain{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px;display:flex;flex-direction:column}
+.pain .tag-p{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:var(--red2);margin-bottom:10px}
+.pain .t{font-size:17px;font-weight:700;margin-bottom:6px}
+.pain .d{font-size:13px;color:var(--muted);margin-bottom:18px;flex:1}
+.pain .arrow{font-family:var(--mono);color:var(--dim);font-size:14px;margin-bottom:10px}
+.pain .sol{border-top:1px solid var(--line);padding-top:14px}
+.pain .sol .st{font-size:15px;font-weight:700;color:var(--amber2);font-family:var(--mono)}
+.pain .sol .sd{font-size:13px;color:var(--muted);margin-top:5px}
+.verdict{margin-top:26px;border-left:2px solid var(--amber);padding:14px 22px;background:var(--amber-soft);border-radius:0 10px 10px 0;font-size:15px}
+.verdict b{color:var(--amber2)}
+
+.matrix{display:grid;grid-template-columns:1.5fr 1fr;gap:16px}
+@media(max-width:960px){.matrix{grid-template-columns:1fr}}
+.mrow{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:baseline;padding:14px 0;border-top:1px solid var(--line)}
+.mrow:first-of-type{border-top:none}
+.mrow .cfg{font-family:var(--mono);font-size:13px;font-weight:600}
+.mrow .cfg .star{color:var(--amber)}
+.mrow .d{font-size:13px;color:var(--muted)}
+.mrow .use{font-family:var(--mono);font-size:11px;color:var(--dim);text-align:right}
+.kv{display:flex;justify-content:space-between;font-size:13.5px;padding:9px 0;border-top:1px solid var(--line)}
+.kv:first-of-type{border-top:none}
+.kv .k{color:var(--muted)}.kv .v{font-family:var(--mono)}
+.kv .v em{font-style:normal;color:var(--amber2);font-weight:700}
+
+.data-wrap{display:grid;grid-template-columns:1fr 1.15fr;gap:26px;align-items:start}
+@media(max-width:960px){.data-wrap{grid-template-columns:1fr}}
+.bars-mini .bm{margin:12px 0}
+.bm .top{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px}
+.bm .top .n{color:var(--muted)}
+.bm .top .n i{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--dim);margin-left:6px}
+.bm .top .v{font-family:var(--mono);font-size:12.5px}
+.track{position:relative;height:24px;background:#0e1219;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.track .fill{position:absolute;top:0;bottom:0;left:0;width:0;border-radius:5px;background:linear-gradient(90deg,rgba(242,163,60,.5),var(--amber));transition:width 1.2s cubic-bezier(.2,.7,.2,1)}
+.track .fill.weak{background:linear-gradient(90deg,rgba(242,163,60,.14),rgba(242,163,60,.32))}
+.cls-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:14px}
+@media(max-width:560px){.cls-grid{grid-template-columns:1fr}}
+.cls{border:1px solid var(--line);border-radius:9px;padding:9px 13px;font-size:12.5px;color:var(--muted);background:#0e1219}
+.cls b{color:var(--text);font-weight:600}
+.cls i{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--dim);float:right}
+.honest-card{border:1px solid rgba(242,163,60,.3);background:var(--amber-soft);border-radius:14px;padding:20px 24px;margin-top:18px}
+.honest-card .t{font-size:13.5px;font-weight:700;color:var(--amber2);margin-bottom:6px}
+.honest-card p{font-size:13px;color:var(--muted)}
+.honest-card code{font-family:var(--mono);font-size:12px;color:var(--text)}
+
+.charts{display:grid;grid-template-columns:1.15fr .85fr;gap:16px}
+@media(max-width:960px){.charts{grid-template-columns:1fr}}
+.brow{margin:14px 0}
+.brow .top{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px}
+.brow .top .name{color:var(--muted)}
+.brow .top .name i{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--dim);margin-left:6px}
+.brow .top .vals{font-family:var(--mono);font-size:12.5px}
+.brow .top .vals .b{color:var(--amber2);font-weight:700}
+.brow .top .vals .w{color:var(--dim)}
+.figframe{background:#f4f4f6;border-radius:10px;padding:8px;margin-top:14px}
+.figframe img{width:100%;display:block;border-radius:6px}
+.figcap{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:9px;display:flex;justify-content:space-between}
+.overall{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:16px}
+.ov{border:1px solid var(--line);border-radius:10px;padding:12px 15px;background:#0e1219}
+.ov .k{font-size:11.5px;color:var(--dim);font-family:var(--mono)}
+.ov .v{font-family:var(--mono);font-size:20px;font-weight:700;color:var(--amber2)}
+
+.case{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:26px 30px;margin-bottom:16px}
+.case .hd{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}
+.case .cls-tag{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--red2);border:1px solid rgba(255,107,111,.35);border-radius:7px;padding:2px 11px;background:rgba(255,107,111,.07)}
+.case .t{font-size:18px;font-weight:700}
+.chain{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:10px;align-items:stretch;margin:18px 0}
+@media(max-width:900px){.chain{grid-template-columns:1fr}.chain .c-arrow{transform:rotate(90deg)}}
+.chain .node{border:1px solid var(--line);border-radius:11px;padding:15px 17px;background:#0e1219}
+.chain .node .nt{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.1em;margin-bottom:6px}
+.chain .node .nd{font-size:13px;color:var(--muted)}
+.chain .node .nd b{color:var(--text)}
+.chain .c-arrow{color:var(--amber);font-family:var(--mono);align-self:center;font-size:18px}
+.footfix{border:1px dashed rgba(242,163,60,.4);border-radius:12px;padding:16px 20px;background:var(--amber-soft)}
+.footfix .t{font-size:13.5px;font-weight:700;color:var(--amber2);margin-bottom:6px}
+.footfix code{font-family:var(--mono);font-size:12px;color:var(--text)}
+
+.cv-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:960px){.cv-grid{grid-template-columns:1fr}}
+.roles li{list-style:none;display:flex;gap:10px;font-size:13.5px;color:var(--muted);padding:8px 0;border-top:1px solid var(--line)}
+.roles li:first-child{border-top:none}
+.roles .r{color:var(--amber);font-family:var(--mono);flex:none}
+.exp{border:1px solid var(--line);border-radius:12px;padding:18px 22px;margin-top:14px;background:#0e1219}
+.exp .et{font-size:14px;font-weight:700;margin-bottom:6px}
+.exp .etag{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;padding:2px 9px;border-radius:999px;margin-left:8px}
+.etag.up{background:rgba(76,195,138,.12);color:var(--green);border:1px solid rgba(76,195,138,.3)}
+.etag.down{background:rgba(255,107,111,.1);color:var(--red2);border:1px solid rgba(255,107,111,.3)}
+.exp p{font-size:13px;color:var(--muted)}
+.exp p b{color:var(--text)}
+
+.dep{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:900px){.dep{grid-template-columns:1fr}}
+.dcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+.dcard .path{font-family:var(--mono);font-size:11px;color:var(--amber);letter-spacing:.12em;margin-bottom:10px}
+.dcard .t{font-size:16px;font-weight:700;margin-bottom:6px}
+.dcard .d{font-size:13px;color:var(--muted);margin-bottom:12px}
+.dcard .to{font-family:var(--mono);font-size:12px;color:var(--dim);border-top:1px solid var(--line);padding-top:11px}
+
+.bounds{display:grid;grid-template-columns:1fr 1.25fr;gap:16px}
+@media(max-width:900px){.bounds{grid-template-columns:1fr}}
+.limit-chip{display:flex;gap:12px;padding:13px 0;border-top:1px solid var(--line);font-size:13.5px;color:var(--muted);align-items:baseline}
+.limit-chip:first-of-type{border-top:none}
+.limit-chip .no{font-family:var(--mono);color:var(--dim);font-size:12px;flex:none}
+.roadmap{list-style:none}
+.roadmap li{display:flex;gap:14px;padding:13px 0;border-top:1px solid var(--line);align-items:baseline}
+.roadmap li:first-child{border-top:none}
+.pr{font-family:var(--mono);font-size:10.5px;padding:2px 8px;border-radius:5px;flex:none;background:var(--amber-soft);color:var(--amber2);border:1px solid rgba(242,163,60,.3)}
+.pr.p1{background:var(--surface);color:var(--muted);border-color:var(--line2)}
+.roadmap .t{font-size:14.5px;font-weight:600}
+.roadmap .d{font-size:12.5px;color:var(--dim)}
+.abl{width:100%;border-collapse:collapse;margin-top:14px;font-size:12.5px}
+.abl th{font-family:var(--mono);font-size:11px;color:var(--dim);text-align:left;padding:7px 9px;border-bottom:1px solid var(--line2);font-weight:400}
+.abl td{padding:8px 9px;border-bottom:1px solid var(--line);color:var(--muted)}
+.abl td.m{font-family:var(--mono);color:var(--text)}
+.abl td.pend{color:var(--dim);font-style:italic}
+
+footer{border-top:1px solid var(--line);padding:64px 0 44px;background:var(--bg2)}
+.foot{display:flex;gap:34px;align-items:flex-start;flex-wrap:wrap}
+.seal{width:74px;height:74px;border:3px solid var(--amber);border-radius:10px;color:var(--amber);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:22px;font-weight:800;transform:rotate(4deg);flex:none;box-shadow:inset 0 0 0 1.5px rgba(242,163,60,.35)}
+.foot-info{flex:1;min-width:240px}
+.foot-info .name{font-size:17px;font-weight:700;margin-bottom:4px}
+.foot-info .sub{font-size:13px;color:var(--dim);margin-bottom:14px}
+.foot-links{display:flex;flex-wrap:wrap;gap:10px}
+.foot-links a{font-family:var(--mono);font-size:12px;color:var(--muted);text-decoration:none;border:1px solid var(--line2);padding:5px 13px;border-radius:7px;transition:.2s}
+.foot-links a:hover{color:var(--amber2);border-color:var(--amber)}
+.credits{margin-top:30px;padding-top:20px;border-top:1px solid var(--line);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--dim);font-family:var(--mono)}
+
+body.js .reveal{opacity:0;transform:translateY(26px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1);transition-delay:var(--d,0ms)}
+body.js .reveal.in{opacity:1;transform:none}
+@media(prefers-reduced-motion:reduce){body.js .reveal{opacity:1;transform:none;transition:none}.scanline{display:none}html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<nav>
+  <div class="nav-in">
+    <div class="brand"><span class="seal-mini">检</span>工业质检 · 缺陷检测</div>
+    <div class="nav-links">
+      <a href="#s1">痛点→设计</a><a href="#s2">模型矩阵</a><a href="#s3">数据</a><a href="#s4">结果</a>
+      <a href="#s5">硬案例</a><a href="#s6">传统CV</a><a href="#s7">部署</a><a href="#s8">路线</a>
+    </div>
+    <a class="nav-gh" href="https://github.com/sunnyingyang-cpu/industrial-defect-detection" target="_blank" rel="noopener">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+      GitHub</a>
+  </div>
+</nav>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="hero-glow"></div>
+  <div class="hero-grid-bg"></div>
+  <div class="hero-spec">
+    <span>NEU-DET · crazing / inclusion / patches / pitted_surface / rolled-in_scale / scratches</span>
+    <span>mAP@0.5 = 0.606 · mAP@0.5:0.95 = 0.270 · GTX 1650 · 4GB · 9.8h</span>
+  </div>
+  <div class="wrap" style="position:relative">
+    <div class="hero-eyebrow reveal">PROJECT SHOWCASE · INDUSTRIAL VISION INSPECTION</div>
+    <h1 class="reveal" style="--d:80ms">给产线装上，<br>会看<span class="hl">缺陷</span>的眼睛</h1>
+    <p class="hero-sub reveal" style="--d:160ms">
+      基于 <code>YOLOv5</code> 的工业质检方案：针对<b style="color:var(--text)">微小、低对比度、多尺度</b>三类表面缺陷
+      做定向架构改造（P2 小目标头 / C3TR 注意力 / P6 多尺度），在 NEU-DET 上完成
+      数据转换 → 训练 → 评测 → <b style="color:var(--text)">ONNX / TensorRT / REST</b> 部署全路径，
+      并用对照实验给传统 CV 算法<strong style="color:var(--text)">找到了准确定位</strong>。
+    </p>
+    <div class="hero-chips reveal" style="--d:240ms">
+      <span class="chip">YOLOv5s + P2 小目标头</span><span class="chip">NEU-DET · 1,800 张 · 6 类</span>
+      <span class="chip">GTX 1650 · 4GB 显存</span><span class="chip">ONNX / TensorRT / Flask REST</span><span class="chip">MIT · 可复现</span>
+    </div>
+
+    <div class="scanbox reveal" style="--d:320ms">
+      <div class="scanbar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="scan-title">docs/figures/preprocessing/detect_compare_crazing.png — 真实推理输出 · best.pt · conf≥0.10</span></div>
+      <span class="real-tag">RAW OUTPUT · 未修改</span>
+      <div class="scan-body">
+        <img src="figures/preprocessing/detect_compare_crazing.png" alt="crazing 缺陷：原图与 CLAHE 增强输入的检测对比（真实模型输出）">
+        <div class="scanline"></div>
+      </div>
+      <div class="scan-caps">
+        <div class="cap"><b>原始输入</b> — 仅 1 框 · crazing conf <span class="a">0.11</span>：低对比度下模型近乎失明</div>
+        <div class="cap hot"><b>CLAHE 增强</b> — 12 框 · max conf <span class="a">0.32</span>：响应提升，但引入误检 → 结论见 §06</div>
+      </div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric reveal" style="--d:380ms"><div class="num"><span data-count="0.606" data-dec="3">0</span></div><div class="lab">mAP@0.5（val 集）</div><div class="delta">mAP@0.5:0.95 = 0.270</div></div>
+      <div class="metric reveal" style="--d:460ms"><div class="num"><span data-count="9.8" data-dec="1">0</span><small>h</small></div><div class="lab">GTX 1650 · 4GB 完成训练</div><div class="delta">显存峰值 5.14GB · 权重 15.1MB</div></div>
+      <div class="metric reveal" style="--d:540ms"><div class="num"><span data-count="1800">0</span></div><div class="lab">NEU-DET 缺陷图 · 6 类</div><div class="delta">mAP 逐类如实呈现 0.26 – 0.86</div></div>
+      <div class="metric reveal" style="--d:620ms"><div class="num"><span data-count="3">0</span><small>条</small></div><div class="lab">部署路径全部打通</div><div class="delta">ONNX / TensorRT / REST API</div></div>
+    </div>
+  </div>
+  <div class="scroll-hint">SCROLL<span style="font-size:16px">↓</span></div>
+</header>
+
+<main>
+<!-- ============ §01 痛点→设计 ============ -->
+<section id="s1">
+  <div class="wrap">
+    <div class="eyebrow reveal">§ 01 · PROBLEM-DRIVEN DESIGN</div>
+    <h2 class="reveal">三个产线痛点，三处架构改造</h2>
+    <p class="lead reveal">先看产线上什么在漏检，再决定改网络的哪里——<b>每一次改动都对应一个明确的工业问题</b>，全部以独立 yaml 配置提供，可单独验证、可 ablation。</p>
+    <div class="tri">
+      <div class="pain reveal">
+        <div class="tag-p">PAIN 01 · 尺度</div>
+        <div class="t">缺陷极小</div>
+        <div class="d">划痕宽度常 &lt; 5px，P3 层（8× 下采样）难以保留细节</div>
+        <div class="arrow">▼ 针对性改造</div>
+        <div class="sol"><div class="st">+ P2 小目标检测头</div><div class="sd">4× stride 高分辨率特征，手工锚框 + autoanchor 微调，提升亚像素级召回</div></div>
+      </div>
+      <div class="pain reveal" style="--d:100ms">
+        <div class="tag-p">PAIN 02 · 对比度</div>
+        <div class="t">低对比度 / 易漏检</div>
+        <div class="d">轧入氧化皮等条带缺陷与背景灰度几乎连续，卷积局部感受野不够</div>
+        <div class="arrow">▼ 针对性改造</div>
+        <div class="sol"><div class="st">+ C3TR Transformer</div><div class="sd">neck 引入自注意力，强化全图上下文判别</div></div>
+      </div>
+      <div class="pain reveal" style="--d:200ms">
+        <div class="tag-p">PAIN 03 · 尺度跨度</div>
+        <div class="t">点状 → 面状跨度大</div>
+        <div class="d">从点状夹杂到成片斑块，单一尺度网格无法统一覆盖</div>
+        <div class="arrow">▼ 针对性改造</div>
+        <div class="sol"><div class="st">+ P6 多尺度配置</div><div class="sd">P3–P6 四尺度统一检测，配多组锚框对照实验</div></div>
+      </div>
+    </div>
+    <div class="verdict reveal">设计哲学：<b>不是把所有 trick 堆上去，而是让每个架构决策都能回答"它解决哪个产线痛点"</b>——
+      6 套配置（P2 / P6+TR / 4l / 4lm / 3l / 5l）构成完整的消融矩阵。</div>
+  </div>
+</section>
+
+<!-- ============ §02 模型矩阵 ============ -->
+<section id="s2">
+  <div class="wrap">
+    <div class="eyebrow reveal">§ 02 · MODEL MATRIX</div>
+    <h2 class="reveal">六套配置的消融矩阵 <span class="en">ONE REPO, SIX HYPOTHESES</span></h2>
+    <p class="lead reveal">每套配置回答一个假设，按部署场景选择——而不是一份配置打天下。</p>
+    <div class="matrix">
+      <div class="card reveal">
+        <div class="mrow"><span class="cfg"><span class="star">★</span> defect_yolov5s_p2.yaml</span><span class="d">P2 小目标头 + 手工锚框 + autoanchor 微调</span><span class="use">边缘部署 · 微小缺陷优先</span></div>
+        <div class="mrow"><span class="cfg">defect_yolov5s6_tr.yaml</span><span class="d">P6 多尺度 + C3TR Transformer 自注意力</span><span class="use">服务器端 · 低对比度缺陷</span></div>
+        <div class="mrow"><span class="cfg">yolov5s-4l / -4lm</span><span class="d">4 尺度检测 + 多组锚框（比赛验证）</span><span class="use">不同尺度分布对照</span></div>
+        <div class="mrow"><span class="cfg">yolov5s-3l / 5l-6</span><span class="d">三尺度基线 / P6 大感受野</span><span class="use">ablation 对照组</span></div>
+      </div>
+      <div class="card reveal" style="--d:120ms">
+        <h4 style="font-size:15px;margin-bottom:10px">实测条件 <span class="en" style="font-size:10px">RUNTIME FACTS</span></h4>
+        <div class="kv"><span class="k">训练设备</span><span class="v">GTX 1650 · <em>4GB</em></span></div>
+        <div class="kv"><span class="k">训练时长</span><span class="v">9.8 h（100 epochs）</span></div>
+        <div class="kv"><span class="k">显存峰值</span><span class="v">5.14 GB</span></div>
+        <div class="kv"><span class="k">验证集</span><span class="v">179 张 / 404 标签</span></div>
+        <div class="kv"><span class="k">产出权重</span><span class="v">best.pt · <em>15.1 MB</em></span></div>
+        <div class="kv"><span class="k">预训练</span><span class="v">yolov5s.pt（COCO 迁移）</span></div>
+        <div class="note" style="margin-top:12px">4GB 消费级显卡完成全部实验——<b>低资源约束下的全流程，是本项目的默认设定而非妥协</b>。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ §03 数据 ============ -->
+<section id="s3">
+  <div class="wrap">
+    <div class="eyebrow reveal">§ 03 · THE DATA</div>
+    <h2 class="reveal">NEU-DET：六类钢带表面缺陷 <span class="en">1,800 IMAGES · 6 CLASSES</span></h2>
+    <p class="lead reveal">公开基准做算法验证，方法可直接迁移到<b>偏振片 / 光学膜 / 玻璃</b>等产线自有数据——换数据不改代码。</p>
+    <div class="data-wrap">
+      <div class="reveal">
+        <div class="bm"><div class="top"><span class="n">训练集 <i>train</i></span><span class="v">1,441 张</span></div><div class="track"><div class="fill" data-w="80"></div></div></div>
+        <div class="bm"><div class="top"><span class="n">验证集 <i>val</i></span><span class="v">179 张 · 404 标签</span></div><div class="track"><div class="fill" data-w="10" style="transition-delay:.15s"></div></div></div>
+        <div class="bm"><div class="top"><span class="n">测试集 <i>test</i></span><span class="v">180 张</span></div><div class="track"><div class="fill" data-w="10" style="transition-delay:.3s"></div></div></div>
+        <div class="note" style="margin-top:16px"><b>tools/prepare_neu_det.py</b>：VOC-XML / 东北大学原生 txt 两种标注 → YOLO 格式一键转换 + 切分，与 data/defect_neu.yaml 自动对齐。</div>
+      </div>
+      <div class="reveal" style="--d:120ms">
+        <div class="cls-grid">
+          <div class="cls"><b>crazing</b> 龟裂<i>网状细纹</i></div>
+          <div class="cls"><b>inclusion</b> 夹杂<i>异色点块</i></div>
+          <div class="cls"><b>patches</b> 斑块<i>成片色差</i></div>
+          <div class="cls"><b>pitted_surface</b> 凹坑<i>点状凹陷</i></div>
+          <div class="cls"><b>rolled-in_scale</b> 氧化皮<i>条带状</i></div>
+          <div class="cls"><b>scratches</b> 划痕<i>线状痕迹</i></div>
+        </div>
+        <div class="honest-card">
+          <div class="t">⚖ 诚实声明</div>
+          <p>NEU-DET 是<b style="color:var(--text)">公开 benchmark，不是独家工业数据</b>——本仓库用它验证训练/评测管线与检测能力。
+            但 <code>prepare_neu_det.py</code> + <code>defect_neu.yaml</code> 可直接替换为自有产线数据，方法完整可迁移。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ §04 结果 ============ -->
+<section id="s4">
+  <div class="wrap">
+    <div class="eyebrow reveal">§ 04 · THE EVIDENCE</div>
+    <h2 class="reveal">结果：六类缺陷，如实呈现 <span class="en">PER-CLASS mAP@0.5</span></h2>
+    <p class="lead reveal">整体 mAP@0.5 = <b>0.606</b>，但均值会撒谎——逐类分解才是质检场景的真话：<b>三类已可用，两类是硬骨头</b>。</p>
+    <div class="charts">
+      <div class="card reveal">
+        <h4 style="font-size:15px">逐类 mAP@0.5 <span class="en" style="font-size:10px">val · 179 IMAGES</span></h4>
+        <div class="brow"><div class="top"><span class="name">patches 斑块<i>70 labels</i></span><span class="vals"><span class="b">0.861</span></span></div><div class="track"><div class="fill" data-w="86.1"></div></div></div>
+        <div class="brow"><div class="top"><span class="name">inclusion 夹杂<i>96 labels</i></span><span class="vals"><span class="b">0.756</span></span></div><div class="track"><div class="fill" data-w="75.6" style="transition-delay:.1s"></div></div></div>
+        <div class="brow"><div class="top"><span class="name">scratches 划痕<i>60 labels</i></span><span class="vals"><span class="b">0.740</span></span></div><div class="track"><div class="fill" data-w="74" style="transition-delay:.2s"></div></div></div>
+        <div class="brow"><div class="top"><span class="name">pitted_surface 凹坑<i>48 labels</i></span><span class="vals"><span class="b">0.686</span></span></div><div class="track"><div class="fill" data-w="68.6" style="transition-delay:.3s"></div></div></div>
+        <div class="brow"><div class="top"><span class="name">rolled-in_scale 氧化皮<i>52 labels</i></span><span class="vals"><span class="w">0.335</span></span></div><div class="track"><div class="fill weak" data-w="33.5" style="transition-delay:.4s"></div></div></div>
+        <div class="brow"><div class="top"><span class="name">crazing 龟裂<i>78 labels</i></span><span class="vals"><span class="w">0.261</span></span></div><div class="track"><div class="fill weak" data-w="26.1" style="transition-delay:.5s"></div></div></div>
+        <div class="overall">
+          <div class="ov"><div class="k">mAP@0.5</div><div class="v">0.606</div></div>
+          <div class="ov"><div class="k">mAP@0.5:0.95</div><div class="v">0.270</div></div>
+          <div class="ov"><div class="k">Precision</div><div class="v">0.665</div></div>
+          <div class="ov"><div class="k">Recall</div><div class="v">0.545</div></div>
+        </div>
+        <div class="note" style="margin-top:12px">浅色条 = 当前架构下的<b>已知弱项</b>，根因分析见 §05，药方见 §08。</div>
+      </div>
+      <div class="card reveal" style="--d:120ms">
+        <h4 style="font-size:15px">训练收敛 <span class="en" style="font-size:10px">RAW ARTIFACT</span></h4>
+        <div class="figframe"><img src="figures/results.png" alt="YOLOv5 训练曲线：loss 下降与 mAP 收敛（原始产物）"></div>
+        <div class="figcap"><span>runs/train/exp4/results.png · 未修改</span><span>100 epochs</span></div>
+        <div class="note" style="margin-top:12px">box/obj/cls 三 loss 前 30 epoch 快速下降，mAP@0.5 在 60 epoch 后稳定于 0.606，<b>无明显过拟合</b>。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ §05 硬案例 ============ -->
+<section id="s5">
+  <div class="wrap">
+    <div class="eyebrow reveal">§ 05 · THE HARD CASE</div>
+    <h2 class="reveal">crazing：一场严重的漏检 <span class="en">RECALL ≈ 0</span></h2>
+    <div class="case reveal">
+      <div class="hd"><span class="cls-tag">crazing · 龟裂</span><span class="t">P = 1.00* / R ≈ 0.00 · mAP 0.261</span></div>
+      <p class="note">* 这组数字的含义：<b style="color:var(--text)">模型在当前置信阈值下几乎不预测该类——是严重漏检，不是误检</b>。
+        敢把它放在第一行讲，是因为根因可以一条链讲清楚：</p>
+      <div class="chain">
+        <div class="node"><div class="nt">CAUSE 1 · 特征重叠</div><div class="nd">网状细纹与钢材本底纹理<b>在特征空间高度混杂</b>——Canny 边缘图上细碎边缘密布，缺陷与背景难以分离</div></div>
+        <div class="c-arrow">→</div>
+        <div class="node"><div class="nt">CAUSE 2 · 传统分割失效</div><div class="nd">光照不均下 <b>Otsu 全局阈值直接失效</b>（半幅图像全白），Adaptive 阈值同样被背景淹没</div></div>
+        <div class="c-arrow">→</div>
+        <div class="node"><div class="nt">CAUSE 3 · 形态学无力回天</div><div class="nd">连通域分析输出 <b>160 个碎片</b>，简单后处理拼不出完整缺陷区域</div></div>
+      </div>
+      <p class="note">混淆矩阵同样佐证：对角线外的混淆主要发生在 <b>crazing / scratches / rolled-in_scale</b> 之间——
+        条状与网状缺陷在特征空间彼此纠缠，这正是 §08 路线图的出发点。</p>
+    </div>
+    <div class="footfix reveal">
+      <div class="t">处方已开，待煎 <span class="en" style="font-size:10px">FIX PREPARED · PENDING RUN</span></div>
+      <p class="note">针对性超参 <code>data/hyp.opt.yaml</code> 已就绪：<code>fl_gamma: 2.0</code>（Focal Loss 聚焦难例）+
+        <code>hsv_v: 0.6</code>(亮度/对比度扰动) + <code>mosaic: 0.5</code>（降低对小目标的过度压缩），并以 <code>--img 800</code> 高分辨率复训——
+        目标是 crazing 与 rolled-in_scale 的召回，同时守住整体 mAP。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ §06 传统 CV ============ -->
+<section id="s6">
+  <div class="wrap">
+    <div class="eyebrow reveal">§ 06 · CLASSICAL CV × DEEP LEARNING</div>
+    <h2 class="reveal">传统图像处理：被实验定位过的工具</h2>
+    <p class="lead reveal">CLAHE、Gamma、双边滤波、Canny、Top-Hat / Black-Hat、开闭运算、Otsu、连通域——
+      每类缺陷跑完整 12 步管线（<code>tools/preprocess_demo.py</code>），再用 GLCM / LBP 纹理特征做对照。
+      <b>传统 CV 不做检测器，它的角色由实验说了算：</b></p>
+    <div class="cv-grid">
+      <div class="card reveal">
+        <h4 style="font-size:15px;margin-bottom:10px">三种角色</h4>
+        <ul class="roles">
+          <li><span class="r">R1</span><span><b style="color:var(--text)">训练数据增强</b>——CLAHE / 形态学扰动加入训练分布，提升难例类召回（推荐用法）</span></li>
+          <li><span class="r">R2</span><span><b style="color:var(--text)">可选推理预处理</b>——提升低对比度输入可辨识度（有边界，见右）</span></li>
+          <li><span class="r">R3</span><span><b style="color:var(--text)">特征工程基线</b>——GLCM 纯 numpy 实现（对比度/同质性/能量/相关度）+ LBP，验证深度特征是否学到本质差异</span></li>
+        </ul>
+        <div class="note" style="margin-top:14px">GLCM 洞察：patches 对比度最高、inclusion 能量最高、rolled-in_scale 同质性最高——
+          <b>纹理特征"看得见"差异，却填不上 mAP 的沟</b>，与深度学习弱项形成交叉印证。</div>
+      </div>
+      <div class="card reveal" style="--d:120ms">
+        <h4 style="font-size:15px;margin-bottom:10px">决定性实验：CLAHE 硬加在推理期 <span class="en" style="font-size:10px">同一权重 · 同一阈值</span></h4>
+        <div class="exp">
+          <div class="et">crazing 响应提升<span class="etag up">↑ conf 0.11 → 0.32</span></div>
+          <p>CLAHE 让网状细纹浮现，最高置信度提升近 3 倍——<b>增强有效</b>。</p>
+        </div>
+        <div class="exp">
+          <div class="et">但引入成簇误检<span class="etag down">✗ patches / inclusion 误报</span></div>
+          <p>背景纹理被同步放大，12 框中混入多个异类误检；rolled-in_scale 上效果亦不稳定——
+            <b>推理期硬加不是可靠方案</b>。</p>
+        </div>
+        <div class="verdict" style="margin-top:16px;font-size:13.5px">结论：<b>增强应进入训练分布（数据增强协同设计），而不是推理时的滤镜</b>——
+          这个边界是跑出来的，不是背出来的。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ §07 部署 ============ -->
+<section id="s7">
+  <div class="wrap">
+    <div class="eyebrow reveal">§ 07 · TO PRODUCTION</div>
+    <h2 class="reveal">三条部署路径，全部打通 <span class="en">ALGORITHM → SERVICE</span></h2>
+    <p class="lead reveal">检测模型的价值在产线上：原生 export 链路导出，REST 服务对接 MES / 上位机做实时质检。</p>
+    <div class="dep">
+      <div class="dcard reveal">
+        <div class="path">PATH 1 · export --include onnx</div>
+        <div class="t">跨平台推理</div>
+        <div class="d">ONNXRuntime / OpenCV DNN 直接加载，宿主环境无关</div>
+        <div class="to">→ 工控机 · 批量质检</div>
+      </div>
+      <div class="dcard reveal" style="--d:100ms">
+        <div class="path">PATH 2 · export --include engine</div>
+        <div class="t">边缘实时推理</div>
+        <div class="d">TensorRT engine 编译优化，毫秒级单帧延迟</div>
+        <div class="to">→ Jetson · 产线工控盒</div>
+      </div>
+      <div class="dcard reveal" style="--d:200ms">
+        <div class="path">PATH 3 · utils/flask_rest_api</div>
+        <div class="t">REST 推理服务</div>
+        <div class="d">模型封装为 HTTP 接口，标准协议对接产线系统</div>
+        <div class="to">→ MES / 上位机集成</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ §08 路线 ============ -->
+<section id="s8">
+  <div class="wrap">
+    <div class="eyebrow reveal">§ 08 · ROADMAP</div>
+    <h2 class="reveal">下一步：攻两个硬骨头 <span class="en">NEXT EXPERIMENTS</span></h2>
+    <div class="bounds">
+      <div class="card reveal">
+        <h4 style="font-size:15px;margin-bottom:12px">Ablation 对比表 <span class="en" style="font-size:10px">PENDING · 超参已备</span></h4>
+        <table class="abl">
+          <tr><th>模型</th><th>img</th><th>关键优化</th><th>mAP@0.5</th><th>crazing</th></tr>
+          <tr><td class="m">P2 baseline</td><td class="m">640</td><td>COCO 迁移 + autoanchor</td><td class="m">0.606</td><td class="m">0.261</td></tr>
+          <tr><td class="m">P2 + opt</td><td class="m">800</td><td>Focal Loss + 对比度增强 + 降 mosaic</td><td class="m pend">待跑</td><td class="m pend">待跑</td></tr>
+        </table>
+        <div class="note" style="margin-top:12px">超参文件 <code>data/hyp.opt.yaml</code> 已就绪；若 4GB 显存在 img 800 下 OOM，降级路径（img 736 / batch 4）已写进 README。</div>
+      </div>
+      <div class="card reveal" style="--d:120ms">
+        <h4 style="font-size:15px;margin-bottom:12px">优先级 <span class="en" style="font-size:10px">PRIORITIZED</span></h4>
+        <ul class="roadmap">
+          <li><span class="pr">P0</span><span><span class="t">P2 + opt 复训</span><br><span class="d">高分辨率 + Focal Loss，主攻 crazing / rolled-in_scale 召回</span></span></li>
+          <li><span class="pr">P0</span><span><span class="t">CLAHE 进入训练增强</span><br><span class="d">把 §06 实验结论落地：增强进分布，不进推理</span></span></li>
+          <li><span class="pr p1">P1</span><span><span class="t">C3TR (P6) 对照组</span><br><span class="d">验证 Transformer 上下文对低对比度条带缺陷的增益</span></span></li>
+          <li><span class="pr p1">P1</span><span><span class="t">自有产线数据迁移验证</span><br><span class="d">换数据不改代码：偏振片 / 光学膜 / 玻璃场景</span></span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div class="seal">YYJ</div>
+      <div class="foot-info">
+        <div class="name">工业表面缺陷检测 · YOLOv5</div>
+        <div class="sub">Project showcase · 痛点驱动改造 → 消融矩阵 → 逐类归因 → 产线部署</div>
+        <div class="foot-links">
+          <a href="https://github.com/sunnyingyang-cpu/industrial-defect-detection" target="_blank" rel="noopener">GitHub 仓库 ↗</a>
+          <a href="https://github.com/sunnyingyang-cpu/industrial-defect-detection/blob/main/README.md" target="_blank" rel="noopener">完整文档 ↗</a>
+          <a href="https://github.com/sunnyingyang-cpu/industrial-defect-detection/tree/main/docs/figures" target="_blank" rel="noopener">全部实验产物 ↗</a>
+        </div>
+      </div>
+    </div>
+    <div class="credits">
+      <span>Built by YYJ · 单文件 HTML · 手写 SVG · 零依赖</span>
+      <span>YOLOv5 · NEU-DET · ONNX · TensorRT · MIT License</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+document.body.classList.add('js');
+const bar=document.getElementById('progress');
+addEventListener('scroll',()=>{const h=document.documentElement;
+  bar.style.width=(h.scrollTop/(h.scrollHeight-h.clientHeight)*100)+'%'},{passive:true});
+const io=new IntersectionObserver(es=>es.forEach(e=>{
+  if(!e.isIntersecting)return;e.target.classList.add('in');io.unobserve(e.target);
+  e.target.querySelectorAll?.('.fill').forEach(el=>requestAnimationFrame(()=>el.style.width=el.dataset.w+'%'));
+  e.target.querySelectorAll?.('[data-count]').forEach(el=>{
+    const t=parseFloat(el.dataset.count),d=parseInt(el.dataset.dec||0),s=performance.now(),dur=1400;
+    (function tick(now){const p=Math.min((now-s)/dur,1),v=t*(1-Math.pow(1-p,3));
+      el.textContent=d?v.toFixed(d):Math.round(v).toLocaleString();if(p<1)requestAnimationFrame(tick)})(s);
+  });
+}),{threshold:.18});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>
